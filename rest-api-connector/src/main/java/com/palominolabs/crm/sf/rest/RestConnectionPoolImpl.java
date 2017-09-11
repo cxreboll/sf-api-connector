@@ -20,16 +20,22 @@ import com.codahale.metrics.MetricRegistry;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.HttpClient;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.SSLContexts;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import javax.net.ssl.SSLContext;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.apache.http.conn.ssl.SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER;
 
 @ThreadSafe
 public class RestConnectionPoolImpl<T> implements RestConnectionPool<T> {
@@ -112,7 +118,21 @@ public class RestConnectionPoolImpl<T> implements RestConnectionPool<T> {
             this.connectionManager = connectionManager;
         }
 
-        HttpClientBuilder builder = httpClientBuilder == null ? HttpClientBuilder.create() : httpClientBuilder;
+        SSLContext sslContext = null;
+
+        try {
+            sslContext = SSLContexts.custom().useTLS().build();
+        } catch (Exception e) {
+            System.out.println("ERROR connection to salesforce cannot be initialized");
+        }
+
+        SSLConnectionSocketFactory f = new SSLConnectionSocketFactory(
+                sslContext,
+                new String[]{"TLSv1.1", "TLSv1.2"},
+                null,
+                ALLOW_ALL_HOSTNAME_VERIFIER);
+
+        HttpClientBuilder builder = httpClientBuilder == null ? HttpClientBuilder.create().setSslcontext(sslContext).setSSLSocketFactory(f) : httpClientBuilder;
         this.httpClient = builder.setConnectionManager(this.connectionManager).build();
 
         objectMapper = new ObjectMapper();
